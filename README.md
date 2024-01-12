@@ -4,7 +4,7 @@
 This Android Compose example showcases the implementation of the Model-View-Intent (MVI) architectural pattern. MVI is a reactive architecture that divides the application into three main components: Model, View, and Intent. The pattern emphasizes a unidirectional data flow, making it easier to manage and reason about the application's state.
 
 ## Code
-The entirety of the code resides within the MVI.kt file.
+The entirety of the code resides within the [MVI.kt](https://github.com/rabi-shankar/Android-Compose-Example-with-MVI-Pattern/blob/main/MVI.kt) file.
 
 ## Key Components:
 
