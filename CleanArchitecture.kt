@@ -1,13 +1,18 @@
-package com.estimator.utilities
+package com.demo
 
 import android.app.Application
-import android.content.Context
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
@@ -20,15 +25,11 @@ import androidx.room.PrimaryKey
 import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import androidx.room.TypeConverters
 import androidx.room.Upsert
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
-import dagger.hilt.android.components.ActivityRetainedComponent
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
-import dagger.hilt.android.scopes.ActivityRetainedScoped
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
@@ -47,7 +48,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
-import javax.inject.Qualifier
 import javax.inject.Singleton
 
 // Remote ==========================================================================
@@ -58,7 +58,7 @@ data class UserDto(
 
 class UserApi() {
     suspend fun fetchUser(id: String): UserDto {
-        return UserDto(id = id, fullName = "John Doe") // Mock data
+        return UserDto(id = id, fullName = "Rabi shankar") // Mock data
     }
 }
 
@@ -85,10 +85,11 @@ fun UserDto.toEntity() = UserEntity(id = id, name = fullName)
 fun UserEntity.toDomain() = User(id = id, name = name)
 
 // Repository ==========================================================================
+//@IoDispatcher
 class UserRepositoryImpl(
     private val api: UserApi,
     private val dao: UserDao,
-    @IoDispatcher private val io: CoroutineDispatcher
+    private val io: CoroutineDispatcher
 ) : UserRepository {
     override fun observeUser(id: String): Flow<User?> =
         dao.observeUserById(id)
@@ -170,10 +171,15 @@ fun User.toUi() = UserUi(id = id, displayName = name)
 // Viewmodel ===================================================================
 @HiltViewModel
 class UserViewModel @Inject constructor(
-    private val getUser: GetUserUseCase,
-    private val refreshUser: RefreshUserUseCase,
+    //private val getUser: GetUserUseCase,
+    //private val refreshUser: RefreshUserUseCase,
+    private val repo: UserRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
+
+    companion object{
+        private const val USER_ID_KEY = "userId"
+    }
     private val _state = MutableStateFlow(UserUiState())
     val state: StateFlow<UserUiState> = _state.asStateFlow()
     private val _effects = MutableSharedFlow<UserUiEffect>()
@@ -181,22 +187,19 @@ class UserViewModel @Inject constructor(
 
     fun dispatch(intent: UserUiIntent) {
         when (intent) {
-            UserUiIntent.Load -> reduceLoading(true)
+            is UserUiIntent.Load -> reduceLoading(true)
             is UserUiIntent.Refresh -> refresh(intent.id)
         }
     }
 
     fun start(id: String) {
         viewModelScope.launch {
-            getUser(id)
+            repo.observeUser(id)
                 .onStart { reduceLoading(true) }
                 .catch { _effects.emit(UserUiEffect.ShowError) }
                 .collect { user ->
                     _state.update {
-                        it.copy(
-                            isLoading = false, user =
-                                user?.toUi()
-                        )
+                        it.copy(isLoading = false, user = user?.toUi())
                     }
                 }
         }
@@ -209,12 +212,15 @@ class UserViewModel @Inject constructor(
     private fun refresh(id: String) {
         viewModelScope.launch {
             try {
-                refreshUser(id)
+//                refreshUser(id)
+                repo.refresh(id)
             } catch (e: Exception) {
                 _effects.emit(UserUiEffect.ShowError)
             }
         }
     }
+
+
 }
 
 // Screen ===================================================================
@@ -234,18 +240,27 @@ fun UserScreen(
             }
         }
     }
-    Column {
-        if (state.isLoading)
-            Text("Loading...")
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+    ){
+        Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+        ) {
+            if (state.isLoading)
+                Text("Loading...")
 
-        state.user?.let {
-            Text("Hello, ${it.displayName}")
-        }
+            state.user?.let {
+                Text("Hello, ${it.displayName}")
+            }
 
-        Button(onClick = {
-            viewModel.dispatch(UserUiIntent.Refresh(userId))
-        }) {
-            Text("Refresh")
+            Button(
+                modifier = Modifier.padding(top = 12.dp), onClick = {
+                viewModel.dispatch(UserUiIntent.Refresh(userId))
+            }) {
+                Text("Refresh")
+            }
         }
     }
 }
@@ -269,9 +284,9 @@ abstract class AppDatabase : RoomDatabase() {
 
 // di ===================================================================
 
-@Qualifier
-@Retention(AnnotationRetention.BINARY)
-annotation class IoDispatcher
+//@Qualifier
+//@Retention(AnnotationRetention.BINARY)
+//annotation class IoDispatcher
 
 
 @Module
@@ -297,7 +312,7 @@ object AppModule {
     fun provideUserDao(db: AppDatabase) = db.userDao()
 
     @Provides
-    @IoDispatcher
+//    @IoDispatcher
     fun provideIoDispatcher(): CoroutineDispatcher = Dispatchers.IO
 
     @Provides
