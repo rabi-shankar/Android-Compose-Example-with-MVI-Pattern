@@ -1,4 +1,4 @@
-package com.demo
+package com.dome
 
 import android.app.Application
 import androidx.compose.foundation.layout.Box
@@ -171,9 +171,8 @@ fun User.toUi() = UserUi(id = id, displayName = name)
 // Viewmodel ===================================================================
 @HiltViewModel
 class UserViewModel @Inject constructor(
-    //private val getUser: GetUserUseCase,
-    //private val refreshUser: RefreshUserUseCase,
-    private val repo: UserRepository,
+    private val getUser: GetUserUseCase,
+    private val refreshUser: RefreshUserUseCase,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -194,7 +193,7 @@ class UserViewModel @Inject constructor(
 
     fun start(id: String) {
         viewModelScope.launch {
-            repo.observeUser(id)
+            getUser(id)
                 .onStart { reduceLoading(true) }
                 .catch { _effects.emit(UserUiEffect.ShowError) }
                 .collect { user ->
@@ -212,8 +211,7 @@ class UserViewModel @Inject constructor(
     private fun refresh(id: String) {
         viewModelScope.launch {
             try {
-//                refreshUser(id)
-                repo.refresh(id)
+                refreshUser(id)
             } catch (e: Exception) {
                 _effects.emit(UserUiEffect.ShowError)
             }
